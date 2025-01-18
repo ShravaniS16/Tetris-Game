@@ -1,0 +1,138 @@
+import pygame
+import random
+
+# Pygame setup
+pygame.init()
+
+# Screen dimensions and colors
+SCREEN_WIDTH, SCREEN_HEIGHT = 300, 300
+GRID_SIZE = 30
+COLS, ROWS = 10, 10
+WHITE, BLACK, RED, GREEN, BLUE = (255, 255, 255), (0, 0, 0), (255, 0, 0), (0, 255, 0), (0, 0, 255)
+
+#setting up the game screen
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Tetris")
+
+# Tetris shapes and colors
+SHAPES = [
+    [[1, 1, 1, 1]],  # I shape
+    [[1, 1], [1, 1]],  # O shape
+    [[0, 1, 1], [1, 1, 0]],  # S shape
+    [[1, 1, 0], [0, 1, 1]],  # Z shape
+    [[1, 1, 1], [0, 1, 0]],  # T shape
+    [[1, 1, 1], [1, 0, 0]],  # L shape
+    [[1, 1, 1], [0, 0, 1]]   # J shape
+]
+COLORS = [RED, GREEN, BLUE, (255, 165, 0), (128, 0, 128), (255, 255, 0), (0, 255, 255)]
+
+# Tetris grid is all initially black
+grid = [[BLACK for _ in range(COLS)] for _ in range(ROWS)]
+
+#defining teris_block class
+class Tetris_block:
+    #init initializes random value for shape and color, and aligns them at center top
+    def __init__(self):
+        self.shape = random.choice(SHAPES)
+        self.color = random.choice(COLORS)
+        self.x, self.y = COLS // 2 - len(self.shape[0]) // 2, 0
+
+    def rotate(self):
+        self.shape = [list(row) for row in zip(*self.shape[::-1])]
+
+    def draw(self):
+        for row_idx, row in enumerate(self.shape):
+            for col_idx, cell in enumerate(row):
+                if cell:
+                    pygame.draw.rect(screen, self.color, pygame.Rect((self.x + col_idx) * GRID_SIZE, (self.y + row_idx) * GRID_SIZE, GRID_SIZE, GRID_SIZE))
+
+    def collision(self, dx=0, dy=0):
+        for row_idx, row in enumerate(self.shape):
+            for col_idx, cell in enumerate(row):
+                if cell:
+                    new_x, new_y = self.x + col_idx + dx, self.y + row_idx + dy
+                    if new_x < 0 or new_x >= COLS or new_y >= ROWS or (new_y >= 0 and grid[new_y][new_x] != BLACK):
+                        return True
+        return False
+
+    def freeze(self):
+        for row_idx, row in enumerate(self.shape):
+            for col_idx, cell in enumerate(row):
+                if cell:
+                    grid[self.y + row_idx][self.x + col_idx] = self.color
+
+# Game functions
+def clear_rows():
+    global grid
+    new_grid = [[BLACK for _ in range(COLS)] for _ in range(ROWS)]
+    row_idx = ROWS - 1
+    cleared_rows = 0
+
+    for r in range(ROWS - 1, -1, -1):
+        if all(grid[r][c] != BLACK for c in range(COLS)):
+            cleared_rows += 1
+        else:
+            new_grid[row_idx] = grid[r]
+            row_idx -= 1
+
+    grid = new_grid
+    return cleared_rows
+
+def draw_grid():
+    for y in range(ROWS):
+        for x in range(COLS):
+            pygame.draw.rect(screen, grid[y][x], pygame.Rect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE))
+            pygame.draw.rect(screen, WHITE, pygame.Rect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE), 1)
+
+# Main game loop
+def game_loop():
+    clock = pygame.time.Clock()
+    tetromino = Tetris_block()
+    fall_time, fall_speed = 0, 500  # milliseconds
+
+    running = True
+    while running:
+        screen.fill(BLACK)
+        fall_time += clock.get_rawtime()
+        clock.tick()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFT and not tetromino.collision(dx=-1):
+                    tetromino.x -= 1
+                elif event.key == pygame.K_RIGHT and not tetromino.collision(dx=1):
+                    tetromino.x += 1
+                elif event.key == pygame.K_DOWN:
+                    fall_speed = 50
+                elif event.key == pygame.K_UP:
+                    tetromino.rotate()
+                    if tetromino.collision():
+                        for _ in range(3):  # Rotate back
+                            tetromino.rotate()
+                elif event.key == pygame.K_SPACE:
+                    while not tetromino.collision(dy=1):
+                        tetromino.y += 1
+
+        if fall_time > fall_speed:  # If enough time has passed (fall_time exceeds fall_speed)
+            if not tetromino.collision(dy=1):  # Check if the tetromino can move down (dy=1)
+                tetromino.y += 1  # Move the tetromino down by one row
+            else:
+                tetromino.freeze()  # Freeze the tetromino in place
+                clear_rows()  # Clear any full rows
+                tetromino = Tetris_block()  # Generate a new tetromino
+                if tetromino.collision():  # Check if the new tetromino collides immediately
+                    print("Game Over")  # If so, it's Game Over
+                    running = False  # Stop the game loop
+            fall_time = 0  # Reset fall_time to track the next fall interval
+            fall_speed = 500  # Reset the fall speed (could vary in advanced versions)
+
+        draw_grid()
+        tetromino.draw()
+        pygame.display.flip()
+
+    pygame.quit()
+
+# Start the game
+game_loop()
